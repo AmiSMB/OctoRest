@@ -1,8 +1,9 @@
-from contextlib import contextmanager
 import os
+from contextlib import contextmanager
 from urllib import parse as urlparse
 
 import requests
+
 
 class OctoRest:
     """
@@ -26,7 +27,10 @@ class OctoRest:
         if not parsed.netloc:
             raise TypeError('Provided URL is empty')
 
-        self.url = '{}://{}'.format(parsed.scheme, parsed.netloc)
+        if url.endswith('/'):
+            self.url = '{}://{}{}'.format(parsed.scheme, parsed.netloc, parsed.path)
+        else:
+            self.url = '{}://{}{}/'.format(parsed.scheme, parsed.netloc, parsed.path)
 
         self.session = session or requests.Session()
         self.session.headers.update({'X-Api-Key': apikey})
@@ -84,7 +88,7 @@ class OctoRest:
         url = urlparse.urljoin(self.url, path)
         response = self.session.delete(url)
         self._check_response(response)
-    
+
     def _put(self, path, data=None, files=None, json=None, ret=True):
         """
         Perform HTTP PUT on given path with the auth header
@@ -136,7 +140,7 @@ class OctoRest:
         """
         Retrieve information regarding server and API version
         """
-        return self._get('/api/version')
+        return self._get('api/version')
 
     def _prepend_local(self, location):
         if location.split('/')[0] not in ('local', 'sdcard'):
@@ -149,7 +153,7 @@ class OctoRest:
         It can only be used as a proper API key after having been verified.
         Returns the temporary session key and the timestamp until it’s valid.
         """
-        return self._get('/apps/auth')
+        return self._get('apps/auth')
 
     def verify_tmp_session_key(self):
         """
@@ -158,7 +162,7 @@ class OctoRest:
         and the temporary key.
         Returns the now verified session key and the new validity.
         """
-        return self._post('/apps/auth')
+        return self._post('apps/auth')
 
     def files(self, location=None):
         """
@@ -174,8 +178,8 @@ class OctoRest:
         """
         if location:
             location = self._prepend_local(location)
-            return self._get('/api/files/{}'.format(location))
-        return self._get('/api/files')
+            return self._get('api/files/{}'.format(location))
+        return self._get('api/files')
 
     @contextmanager
     def _file_tuple(self, file):
@@ -197,7 +201,7 @@ class OctoRest:
                 yield (filename, f, mime)
         else:
             yield file + (mime,)
-    
+
     def files_info(self, location, filename):
         """
         Retrieves the selected file’s or folder’s information.
@@ -208,8 +212,7 @@ class OctoRest:
         On success, a 200 OK is returned, with a file information item as 
         the response body.
         """
-        return self._get('/api/files/{}/{}'.format(location, filename))
-
+        return self._get('api/files/{}/{}'.format(location, filename))
 
     def upload(self, file, *, location='local',
                select=False, print=False, userdata=None):
@@ -223,7 +226,7 @@ class OctoRest:
             if userdata:
                 data['userdata'] = userdata
 
-            return self._post('/api/files/{}'.format(location),
+            return self._post('api/files/{}'.format(location),
                               files=files, data=data)
 
     def delete(self, location):
@@ -233,7 +236,7 @@ class OctoRest:
         Location is target/filename, defaults to local/filename
         """
         location = self._prepend_local(location)
-        self._delete('/api/files/{}'.format(location))
+        self._delete('api/files/{}'.format(location))
 
     def select(self, location, *, print=False):
         """
@@ -247,9 +250,9 @@ class OctoRest:
             'command': 'select',
             'print': print,
         }
-        self._post('/api/files/{}'.format(location), json=data, ret=False)
-    
-    def slice(self, location, slicer='cura', gcode=None, printer_profile=None, 
+        self._post('api/files/{}'.format(location), json=data, ret=False)
+
+    def slice(self, location, slicer='cura', gcode=None, printer_profile=None,
               profile=None, select=False, print=False):
         """
         Slices an STL file into GCODE. 
@@ -272,8 +275,8 @@ class OctoRest:
             data['printerProfile'] = printer_profile
         if not profile == None:
             data['profile'] = profile
-        return self._post('/api/files/{}'.format(location), json=data, ret=False)
-    
+        return self._post('api/files/{}'.format(location), json=data, ret=False)
+
     def copy(self, location, dest):
         """
         Copies the file or folder to a new destination on the same location
@@ -283,8 +286,8 @@ class OctoRest:
             'command': 'copy',
             'destination': dest,
         }
-        return self._post('/api/files/{}'.format(location), json=data, ret=False)
-    
+        return self._post('api/files/{}'.format(location), json=data, ret=False)
+
     def move(self, location, dest):
         """
         Moves the file or folder to a new destination on the same location
@@ -294,7 +297,7 @@ class OctoRest:
             'command': 'move',
             'destination': dest,
         }
-        return self._post('/api/files/{}'.format(location), json=data, ret=False)
+        return self._post('api/files/{}'.format(location), json=data, ret=False)
 
     def connection_info(self):
         """
@@ -302,7 +305,7 @@ class OctoRest:
         regarding the available baudrates and serial ports and the
         current connection state.
         """
-        return self._get('/api/connection')
+        return self._get('api/connection')
 
     def state(self):
         """
@@ -345,14 +348,14 @@ class OctoRest:
             data['save'] = save
         if autoconnect is not None:
             data['autoconnect'] = autoconnect
-        self._post('/api/connection', json=data, ret=False)
+        self._post('api/connection', json=data, ret=False)
 
     def disconnect(self):
         """
         Instructs OctoPrint to disconnect from the printer
         """
         data = {'command': 'disconnect'}
-        self._post('/api/connection', json=data, ret=False)
+        self._post('api/connection', json=data, ret=False)
 
     def fake_ack(self):
         """
@@ -363,13 +366,13 @@ class OctoRest:
         investigated and removed instead of depending on this "symptom solver".
         """
         data = {'command': 'fake_ack'}
-        self._post('/api/connection', json=data, ret=False)
+        self._post('api/connection', json=data, ret=False)
 
     def job_info(self):
         """
         Retrieve information about the current job (if there is one)
         """
-        return self._get('/api/job')
+        return self._get('api/job')
 
     def print(self):
         """
@@ -378,7 +381,7 @@ class OctoRest:
         Use select() to select a file
         """
         data = {'command': 'start'}
-        self._post('/api/job', json=data, ret=False)
+        self._post('api/job', json=data, ret=False)
 
     def pause(self):
         """
@@ -387,7 +390,7 @@ class OctoRest:
         There must be an active print job for this to work
         """
         data = {'command': 'pause'}
-        self._post('/api/job', json=data, ret=False)
+        self._post('api/job', json=data, ret=False)
 
     def restart(self):
         """
@@ -397,7 +400,7 @@ class OctoRest:
         must currently be paused
         """
         data = {'command': 'restart'}
-        self._post('/api/job', json=data, ret=False)
+        self._post('api/job', json=data, ret=False)
 
     def cancel(self):
         """
@@ -406,7 +409,7 @@ class OctoRest:
         There must be an active print job for this to work
         """
         data = {'command': 'cancel'}
-        self._post('/api/job', json=data, ret=False)
+        self._post('api/job', json=data, ret=False)
 
     def logs(self):
         """
@@ -414,13 +417,13 @@ class OctoRest:
         and regarding the disk space still available in the system on the
         location the log files are being stored
         """
-        return self._get('/api/logs')
+        return self._get('api/logs')
 
     def delete_log(self, filename):
         """
         Delete the selected log file with name filename
         """
-        self._delete('/api/logs/{}'.format(filename))
+        self._delete('api/logs/{}'.format(filename))
 
     def _hwinfo(self, url, **kwargs):
         """
@@ -453,7 +456,7 @@ class OctoRest:
         Clients can specify a list of attributes to not return in the response
         (e.g. if they don't need it) via the exclude argument.
         """
-        return self._hwinfo('/api/printer', exclude=exclude,
+        return self._hwinfo('api/printer', exclude=exclude,
                             history=history, limit=limit)
 
     def tool(self, *, history=False, limit=None):
@@ -466,7 +469,7 @@ class OctoRest:
         history argument. The amount of returned history data points can be
         limited using the limit argument.
         """
-        return self._hwinfo('/api/printer/tool',
+        return self._hwinfo('api/printer/tool',
                             history=history, limit=limit)
 
     def bed(self, *, history=False, limit=None):
@@ -479,7 +482,7 @@ class OctoRest:
         history argument. The amount of returned history data points can be
         limited using the limit argument.
         """
-        return self._hwinfo('/api/printer/bed',
+        return self._hwinfo('api/printer/bed',
                             history=history, limit=limit)
 
     def home(self, axes=None):
@@ -492,7 +495,7 @@ class OctoRest:
         """
         axes = [a.lower()[:1] for a in axes] if axes else ['x', 'y', 'z']
         data = {'command': 'home', 'axes': axes}
-        self._post('/api/printer/printhead', json=data, ret=False)
+        self._post('api/printer/printhead', json=data, ret=False)
 
     def jog(self, x=None, y=None, z=None):
         """
@@ -515,7 +518,7 @@ class OctoRest:
             data['y'] = y
         if z:
             data['z'] = z
-        self._post('/api/printer/printhead', json=data, ret=False)
+        self._post('api/printer/printhead', json=data, ret=False)
 
     def feedrate(self, factor):
         """
@@ -525,7 +528,7 @@ class OctoRest:
         divided by 100) between 50 and 200%.
         """
         data = {'command': 'feedrate', 'factor': factor}
-        self._post('/api/printer/printhead', json=data, ret=False)
+        self._post('api/printer/printhead', json=data, ret=False)
 
     @classmethod
     def _tool_dict(cls, whatever):
@@ -551,7 +554,7 @@ class OctoRest:
         """
         targets = self._tool_dict(targets)
         data = {'command': 'target', 'targets': targets}
-        self._post('/api/printer/tool', json=data, ret=False)
+        self._post('api/printer/tool', json=data, ret=False)
 
     def tool_offset(self, offsets):
         """
@@ -565,7 +568,7 @@ class OctoRest:
         """
         offsets = self._tool_dict(offsets)
         data = {'command': 'offset', 'offsets': offsets}
-        self._post('/api/printer/tool', json=data, ret=False)
+        self._post('api/printer/tool', json=data, ret=False)
 
     def tool_select(self, tool):
         """
@@ -578,7 +581,7 @@ class OctoRest:
         if isinstance(tool, int):
             tool = 'tool{}'.format(tool)
         data = {'command': 'select', 'tool': tool}
-        self._post('/api/printer/tool', json=data, ret=False)
+        self._post('api/printer/tool', json=data, ret=False)
 
     def extrude(self, amount):
         """
@@ -590,7 +593,7 @@ class OctoRest:
         May be negative to retract.
         """
         data = {'command': 'extrude', 'amount': amount}
-        self._post('/api/printer/tool', json=data, ret=False)
+        self._post('api/printer/tool', json=data, ret=False)
 
     def retract(self, amount):
         """
@@ -611,7 +614,7 @@ class OctoRest:
         (percentage divided by 100) between 75 and 125%.
         """
         data = {'command': 'flowrate', 'factor': factor}
-        self._post('/api/printer/tool', json=data, ret=False)
+        self._post('api/printer/tool', json=data, ret=False)
 
     def bed_target(self, target):
         """
@@ -620,7 +623,7 @@ class OctoRest:
         target: Target temperature to set.
         """
         data = {'command': 'target', 'target': target}
-        self._post('/api/printer/bed', json=data, ret=False)
+        self._post('api/printer/bed', json=data, ret=False)
 
     def bed_offset(self, offset):
         """
@@ -629,7 +632,7 @@ class OctoRest:
         offset: Temperature offset to set.
         """
         data = {'command': 'offset', 'offset': offset}
-        self._post('/api/printer/bed', json=data, ret=False)
+        self._post('api/printer/bed', json=data, ret=False)
 
     def sd_init(self):
         """
@@ -642,7 +645,7 @@ class OctoRest:
         during connection, it will automatically attempt to initialize it.
         """
         data = {'command': 'init'}
-        self._post('/api/printer/sd', json=data, ret=False)
+        self._post('api/printer/sd', json=data, ret=False)
 
     def sd_refresh(self):
         """
@@ -651,7 +654,7 @@ class OctoRest:
         with sd_init().
         """
         data = {'command': 'refresh'}
-        self._post('/api/printer/sd', json=data, ret=False)
+        self._post('api/printer/sd', json=data, ret=False)
 
     def sd_release(self):
         """
@@ -662,7 +665,7 @@ class OctoRest:
         with sd_init().
         """
         data = {'command': 'release'}
-        self._post('/api/printer/sd', json=data, ret=False)
+        self._post('api/printer/sd', json=data, ret=False)
 
     def sd(self):
         """
@@ -671,7 +674,7 @@ class OctoRest:
         If SD support has been disabled in OctoPrint's settings,
         a 404 Not Found is risen.
         """
-        return self._get('/api/printer/sd')
+        return self._get('api/printer/sd')
 
     def gcode(self, command):
         """
@@ -688,7 +691,7 @@ class OctoRest:
             # already an iterable
             commands = list(command)
         data = {'commands': commands}
-        self._post('/api/printer/command', json=data, ret=False)
+        self._post('api/printer/command', json=data, ret=False)
 
     def settings(self, settings=None):
         """
@@ -707,10 +710,10 @@ class OctoRest:
         http://docs.octoprint.org/en/master/configuration/config_yaml.html#config-yaml
         """
         if settings:
-            return self._post('/api/settings', json=settings, ret=True)
+            return self._post('api/settings', json=settings, ret=True)
         else:
-            return self._get('/api/settings')
-    
+            return self._get('api/settings')
+
     def timelapse_list(self, unrendered=None):
         """
         Retrieve a list of timelapses and the current config.
@@ -719,17 +722,17 @@ class OctoRest:
         Unrendered, if True also includes unrendered timelapse.
         """
         if unrendered:
-            return self._get('/api/timelapse', params=unrendered)
-        return self._get('/api/timelapse')
-    
+            return self._get('api/timelapse', params=unrendered)
+        return self._get('api/timelapse')
+
     def delete_timelapse(self, filename):
         """
         Delete the specified timelapse
 
         Requires user rights
         """
-        self._delete('/api/timelapse/{}'.format(filename))
-    
+        self._delete('api/timelapse/{}'.format(filename))
+
     def command_unrend_timelapse(self, name, command):
         """
         Current only supports to render the unrendered timelapse 
@@ -743,7 +746,7 @@ class OctoRest:
         data = {
             'command': 'render',
         }
-        return self._post('/api/timelapse/unrendered/{}'.format(name), json=data)
+        return self._post('api/timelapse/unrendered/{}'.format(name), json=data)
 
     def change_timelapse_conf(self, type):
         """
@@ -756,8 +759,8 @@ class OctoRest:
         data = {
             'type': type,
         }
-        return self._post('/api/timelapse', json=data)
-    
+        return self._post('api/timelapse', json=data)
+
     def lst_slicers(self):
         """
         Returns a list of all available slicing profiles for all 
@@ -766,16 +769,16 @@ class OctoRest:
         Returns a 200 OK response with a Slicer list as the body
         upon successful completion.
         """
-        return self._get('/api/slicing/')
-    
+        return self._get('api/slicing/')
+
     def lst_slicer_profiles(self, slicer):
         """
         Returns a list of all available slicing profiles for
         the requested slicer. Returns a 200 OK response with
         a Profile list as the body upon successful completion.
         """
-        return self._get('/api/slicing/{}/profiles'.format(slicer))
-    
+        return self._get('api/slicing/{}/profiles'.format(slicer))
+
     def get_slicer_profile(self, slicer, key):
         """
         Retrieves the specified profile from the system.
@@ -783,8 +786,8 @@ class OctoRest:
         Returns a 200 OK response with a full Profile as 
         the body upon successful completion.
         """
-        return self._get('/api/slicing/{}/profiles/{}'.format(slicer, key))
-    
+        return self._get('api/slicing/{}/profiles/{}'.format(slicer, key))
+
     # def add_slicer_profile(self, slicer, key):
     #     """
     #     Adds a new slicing profile for the given slicer to the system.
@@ -800,7 +803,7 @@ class OctoRest:
     #     TODO: Create a profile body to send
     #     TODO: Make a OctoRest _put method
     #     """
-    #     return self._put('/api/slicing/{}/profiles/{}'.format(slicer, key))
+    #     return self._put('api/slicing/{}/profiles/{}'.format(slicer, key))
 
     def delete_slicer_profile(self, slicer, key):
         """
@@ -809,18 +812,18 @@ class OctoRest:
 
         Requires admin rights.
         """
-        return self._delete('/api/slicing/{}/profiles/{}'.format(slicer, key))
-    
+        return self._delete('api/slicing/{}/profiles/{}'.format(slicer, key))
+
     def printer_profiles(self):
         """
         Retrieves a list of all configured printer profiles.
         """
-        return self._get('/api/printerprofiles')
-    
+        return self._get('api/printerprofiles')
+
     # def add_printer_profile(self):
     #     """
     #     """
-    #     return self._post('/api/printerprofiles')
+    #     return self._post('api/printerprofiles')
 
     def delete_printer_profile(self, profile):
         """
@@ -829,14 +832,14 @@ class OctoRest:
         If the profile to be deleted is the currently selected profile, 
         a 409 Conflict will be returned.
         """
-        return self._delete('/api/printerprofiles/{}'.format(profile))
-    
+        return self._delete('api/printerprofiles/{}'.format(profile))
+
     def languages(self):
         """
         Retrieves a list of installed language packs.
         """
-        return self._get('/api/languages')
-    
+        return self._get('api/languages')
+
     def upload_language(self, file):
         """
         Uploads a new language pack to OctoPrint.
@@ -856,27 +859,27 @@ class OctoRest:
         with self._file_tuple(file) as file_tuple:
             files = {'file': file_tuple}
 
-            return self._post('/api/languages', files=files)
-    
+            return self._post('api/languages', files=files)
+
     def delete_language(self, locale, pack):
         """
         Retrieves a list of installed language packs.
         """
-        return self._delete('/api/languages/{}/{}'.format(locale, pack))
+        return self._delete('api/languages/{}/{}'.format(locale, pack))
 
     def system_commands(self):
         """
         Retrieves all configured system commands.
         A 200 OK with a List all response will be returned.
         """
-        return self._get('/api/system/commands')
-    
+        return self._get('api/system/commands')
+
     def source_system_commands(self, source):
         """
         Retrieves the configured system commands for the specified source.
         The response will contain a list of command definitions.
         """
-        return self._get('/api/system/commands/{}'.format(source))
+        return self._get('api/system/commands/{}'.format(source))
 
     def execute_system_command(self, source, action):
         """
@@ -890,7 +893,7 @@ class OctoRest:
             currently either core or custom
             action – The identifier of the command, action from its definition
         """
-        return self._post('/api/system/commands/{}/{}'.format(source, action))
+        return self._post('api/system/commands/{}/{}'.format(source, action))
 
     def users(self):
         """
@@ -898,8 +901,8 @@ class OctoRest:
         Will return a 200 OK with a user list response as body.
         Requires admin rights.
         """
-        return self._get('/api/users')
-    
+        return self._get('api/users')
+
     def user(self, username):
         """
         Retrieves information about a user.
@@ -909,8 +912,8 @@ class OctoRest:
         Parameters:
             username – Name of the user which to retrieve
         """
-        return self._get('/api/users/{}'.format(username))
-    
+        return self._get('api/users/{}'.format(username))
+
     def add_user(self, name, password, active=False, admin=False):
         """
         Adds a user to OctoPrint.
@@ -930,8 +933,8 @@ class OctoRest:
             'active': active,
             'admin': admin,
         }
-        return self._post('/api/users', json=data)
-    
+        return self._post('api/users', json=data)
+
     def update_user(self, username, admin=None, active=None):
         """
         Updates a user record.
@@ -947,7 +950,7 @@ class OctoRest:
             active – Whether to mark the account as activated (true) or deactivated (false), can be left out (no change)
         """
         if admin == None and active == None:
-            return self._put('/api/users/{}'.format(username))
+            return self._put('api/users/{}'.format(username))
         if not admin == None:
             data = {
                 'admin': admin,
@@ -961,8 +964,8 @@ class OctoRest:
                 'active': active,
                 'admin': admin,
             }
-        return self._put('/api/users/{}'.format(username), json=data)
-    
+        return self._put('api/users/{}'.format(username), json=data)
+
     def delete_user(self, username):
         """
         Delete a user record.
@@ -972,8 +975,8 @@ class OctoRest:
         Parameters:
             username – Name of the user to delete
         """
-        return self._delete('/api/users/{}'.format(username))
-    
+        return self._delete('api/users/{}'.format(username))
+
     def rst_user_password(self, username, password):
         """
         Changes the password of a user.
@@ -989,7 +992,7 @@ class OctoRest:
         data = {
             'password': password,
         }
-        return self._put('/api/users/{}/password'.format(username), json=data)
+        return self._put('api/users/{}/password'.format(username), json=data)
 
     def user_settings(self, username):
         """
@@ -1001,8 +1004,8 @@ class OctoRest:
         Parameters:
             username - Name of the user to retrieve the settings for
         """
-        return self._get('/api/users/{}/settings'.format(username))
-    
+        return self._get('api/users/{}/settings'.format(username))
+
     def regen_user_apikey(self, username):
         """
         Generates a new API key for the user.
@@ -1013,8 +1016,8 @@ class OctoRest:
         Parameters:
             username – Name of the user to retrieve the settings for
         """
-        return self._post('/api/users/{}/apikey'.format(username))
-    
+        return self._post('api/users/{}/apikey'.format(username))
+
     def delete_user_apikey(self, username):
         """
         Deletes a user’s personal API key.
@@ -1023,8 +1026,8 @@ class OctoRest:
         Parameters:
             username – Name of the user to retrieve the settings for
         """
-        return self._delete('/api/users/{}/apikey'.format(username))
-    
+        return self._delete('api/users/{}/apikey'.format(username))
+
     def wizard(self):
         """    
         Retrieves additional data about the registered wizards.
@@ -1032,7 +1035,7 @@ class OctoRest:
         Returns a 200 OK with an object mapping wizard identifiers to wizard 
         data entries.
         """
-        return self._get('/setup/wizard')
+        return self._get('setup/wizard')
 
     def finish_wizard(self, handled):
         """
@@ -1050,4 +1053,4 @@ class OctoRest:
         data = {
             'handled': handled,
         }
-        return self._post('/setup/wizard', json=data)
+        return self._post('setup/wizard', json=data)
