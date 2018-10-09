@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from urllib import parse as urlparse
 
 import requests
+from requests_futures.sessions import FuturesSession
 
 
 class OctoRest:
@@ -51,7 +52,8 @@ class OctoRest:
         Returns JSON decoded data
         """
         url = urlparse.urljoin(self.url, path)
-        response = self.session.get(url, params=params)
+        future_session = FuturesSession(session=self.session)
+        response = future_session.get(url, params=params).result()
         self._check_response(response)
 
         return response.json()
